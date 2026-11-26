@@ -1,0 +1,53 @@
+name: Build Executables
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: yt-converter-windows
+            file_path: dist/yt-converter.exe
+          - os: macos-latest
+            artifact_name: yt-converter-macos
+            file_path: dist/yt-converter.app
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Installer les dépendances et PyInstaller
+        run: |
+          uv sync
+          uv pip install pyinstaller flet-desktop
+
+      - name: Compiler l'application
+        run: uv run pyinstaller --noconfirm --onefile --windowed --name yt-converter --collect-all imageio_ffmpeg --collect-all flet --collect-all flet_desktop main.py
+
+      - name: Archiver le .app sur macOS
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          zip -r yt-converter-macos.zip yt-converter.app
+
+      - name: Publier dans la Release GitHub
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/yt-converter.exe
+            dist/yt-converter-macos.zip
